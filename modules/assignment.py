@@ -51,8 +51,43 @@ def assign_packages(packages_df, trains_df, warehouses_df, capacity):
 
     # Total packages
     total_packages = len(packages)
-    Hn = math.ceil(total_packages / capacity)
-    persons = [f"H{i+1}" for i in range(Hn)]
+    
+    # --- Compute persons per train ---
+    train_groups = packages.groupby('train_id')
+    all_assignments = []
+    
+    metadata_per_train = {}
+    
+    for tid, grp in train_groups:
+        total_packages_train = len(grp)
+        Hn_train = math.ceil(total_packages_train / capacity)
+        persons_train = [f"H{i+1}_T{tid}" for i in range(Hn_train)]  # unique per train
+        
+        # --- Run your full-capacity + leftovers allocation logic only on this train ---
+        # Filter packages for this train
+        pkgs_train = grp.to_dict('records')
+        
+        # Now build wh_to_pkgs only for this train
+        wh_to_pkgs_train = defaultdict(list)
+        for pkg in pkgs_train:
+            wh_to_pkgs_train[pkg['warehouse_id']].append(pkg)
+    
+        # Then do the same full-capacity + leftovers assignment logic, 
+        # but using persons_train instead of global persons
+    
+        # Finally, append assignments for this train to all_assignments
+        # assignments_train -> list of dicts: package_id, warehouse_id, train_id, person
+        all_assignments.extend(assignments_train)
+    
+        metadata_per_train[tid] = {
+            'total_packages': total_packages_train,
+            'capacity': capacity,
+            'total_persons': Hn_train
+        }
+    
+    # After looping over all trains:
+    assignments_df = pd.DataFrame(all_assignments)
+
 
     # Step A: Full-capacity allocations per warehouse
     assignments = []  # list of dicts: package_id, warehouse_id, train_id, person
