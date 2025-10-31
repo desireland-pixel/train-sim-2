@@ -1,5 +1,6 @@
 # modules/assignment.py
 import math
+import numpy as np
 import pandas as pd
 from collections import defaultdict
 
