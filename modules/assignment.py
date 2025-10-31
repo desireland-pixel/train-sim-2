@@ -176,7 +176,7 @@ def assign_packages(packages_df, trains_df, warehouses_df, capacity):
     summary_df = summary_df.reset_index()
     
     # --- Identify numeric warehouse columns only ---
-    warehouse_cols = [c for c in summary_df.columns if c in warehouses_df["warehouse_id"].values]
+    warehouse_cols = [c for c in summary_df.columns if c.startswith("W")]
     
     # --- Add total persons (ceiling) ---
     summary_df["Total Persons"] = np.ceil(summary_df[warehouse_cols].sum(axis=1)).astype(int)
