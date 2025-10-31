@@ -162,8 +162,25 @@ def assign_packages(packages_df, trains_df, warehouses_df, capacity):
         raise RuntimeError(f"Assigned {assigned_count} packages but expected {total_packages}.")
 
     # Build summary pivot: for each train x warehouse -> number of distinct persons
-    pivot = assignments_df.groupby(['train_id', 'warehouse_id'])['person'].nunique().unstack(fill_value=0)
-    summary_df = pivot.reset_index().rename(columns={'train_id': 'train_id'})
+    # --- Build summary pivot: train × warehouse ---
+    summary_df = assignments_df.groupby(["train_id", "warehouse_id"]).size().unstack(fill_value=0)
+    
+    # --- Ensure all warehouses are always shown ---
+    all_warehouses = list(warehouses_df["warehouse_id"])
+    summary_df = summary_df.reindex(columns=all_warehouses, fill_value=0)
+    
+    # --- Convert to fractional persons (packages / capacity) ---
+    summary_df = summary_df / capacity
+    
+    # --- Add total persons (ceiling) ---
+    summary_df["Total Persons"] = np.ceil(summary_df.sum(axis=1)).astype(int)
+    
+    # --- Round for cleaner display ---
+    summary_df = summary_df.round(2)
+    
+    # --- Reset index for display ---
+    summary_df = summary_df.reset_index()
+
 
     # Build per-train detailed mappings
     per_train_detail = {}
