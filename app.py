@@ -244,24 +244,33 @@ if st.sidebar.button("Assign Packages"):
             # show summary as a nicer table with train as first col
             st.dataframe(summary_df.fillna(0).set_index('train_id'))
 
-            # Allow selecting a train to show details (drill-down)
+            # --- Persist detailed assignment info across interactions ---
+            if "per_train_detail" not in st.session_state:
+                st.session_state["per_train_detail"] = per_train_detail
+            
+            # --- Dropdown to select a train ---
             train_options = list(summary_df['train_id'])
-            sel_train = st.selectbox("Select Train to view details", options=train_options)
-            if sel_train:
-                detail = per_train_detail.get(sel_train, pd.DataFrame())
+            selected_train = st.selectbox("Select Train to view details", options=train_options)
+            
+            # --- Show details for selected train ---
+            if selected_train:
+                detail = st.session_state["per_train_detail"].get(selected_train, pd.DataFrame())
                 if detail.empty:
                     st.info("No assignment details for selected train.")
                 else:
-                    # show compact detail (warehouse, person, count)
-                    st.markdown(f"**Details for {sel_train}:**")
-                    # Show packages list if desired
-                    # create a copy for display where packages are joined as comma string
+                    st.markdown(f"**Details for {selected_train}:**")
                     detail_disp = detail.copy()
-                    detail_disp['packages'] = detail_disp['packages'].apply(lambda lst: ",".join(lst))
-                    detail_disp = detail_disp[['warehouse', 'person', 'packages', 'count']]
-                    detail_disp = detail_disp.rename(columns={'warehouse': 'Warehouse', 'person': 'Person', 'packages': 'Package IDs', 'count': 'Count'})
+                    detail_disp["packages"] = detail_disp["packages"].apply(lambda lst: ",".join(lst))
+                    detail_disp = detail_disp[["warehouse", "person", "packages", "count"]]
+                    detail_disp = detail_disp.rename(
+                        columns={
+                            "warehouse": "Warehouse",
+                            "person": "Person",
+                            "packages": "Package IDs",
+                            "count": "Count",
+                        }
+                    )
                     st.dataframe(detail_disp)
-
 
 # -------------------------
 # Info text
