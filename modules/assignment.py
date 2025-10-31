@@ -172,15 +172,17 @@ def assign_packages(packages_df, trains_df, warehouses_df, capacity):
     # --- Convert to fractional persons (packages / capacity) ---
     summary_df = summary_df / capacity
     
-    # --- Add total persons (ceiling) ---
-    summary_df["Total Persons"] = np.ceil(summary_df.sum(axis=1)).astype(int)
-    
-    # --- Round for cleaner display ---
-    summary_df = summary_df.round(2)
-    
     # --- Reset index for display ---
     summary_df = summary_df.reset_index()
-
+    
+    # --- Identify numeric warehouse columns only ---
+    warehouse_cols = [c for c in summary_df.columns if c in warehouses_df["warehouse_id"].values]
+    
+    # --- Add total persons (ceiling) ---
+    summary_df["Total Persons"] = np.ceil(summary_df[warehouse_cols].sum(axis=1)).astype(int)
+    
+    # --- Round for cleaner display ---
+    summary_df[warehouse_cols] = summary_df[warehouse_cols].round(2)
 
     # Build per-train detailed mappings
     per_train_detail = {}
