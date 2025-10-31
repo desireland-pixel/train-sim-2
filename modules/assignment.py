@@ -55,113 +55,65 @@ def assign_packages(packages_df, trains_df, warehouses_df, capacity):
     # --- Compute persons per train ---
     train_groups = packages.groupby('train_id')
     all_assignments = []
-    
     metadata_per_train = {}
     
     for tid, grp in train_groups:
         total_packages_train = len(grp)
         Hn_train = math.ceil(total_packages_train / capacity)
         persons_train = [f"H{i+1}_T{tid}" for i in range(Hn_train)]  # unique per train
-        
-        # --- Run your full-capacity + leftovers allocation logic only on this train ---
-        # Filter packages for this train
-        pkgs_train = grp.to_dict('records')
-        
-        # Now build wh_to_pkgs only for this train
+    
+        # --- per-train assignment ---
+        assignments_train = []
+        person_idx = 0
+        leftovers_per_warehouse = {}
+    
+        # build warehouse->package mapping for this train
         wh_to_pkgs_train = defaultdict(list)
-        for pkg in pkgs_train:
-            wh_to_pkgs_train[pkg['warehouse_id']].append(pkg)
+        for _, row in grp.iterrows():
+            wh_to_pkgs_train[row['warehouse_id']].append({'package_id': row['package_id'], 'train_id': row['train_id']})
     
-        # Then do the same full-capacity + leftovers assignment logic, 
-        # but using persons_train instead of global persons
+        # Step A: Full-capacity allocations per warehouse
+        for wh, pkg_list in wh_to_pkgs_train.items():
+            idx = 0
+            n = len(pkg_list)
+            f_i = n // capacity
+            for f in range(f_i):
+                person = persons_train[person_idx]
+                for k in range(capacity):
+                    pkg = pkg_list[idx]
+                    assignments_train.append({
+                        'package_id': pkg['package_id'],
+                        'warehouse_id': wh,
+                        'train_id': pkg['train_id'],
+                        'person': person
+                    })
+                    idx += 1
+                person_idx += 1
+            # leftovers
+            leftover_pkgs = pkg_list[idx:]
+            if leftover_pkgs:
+                leftovers_per_warehouse[wh] = leftover_pkgs
     
-        # Finally, append assignments for this train to all_assignments
-        # assignments_train -> list of dicts: package_id, warehouse_id, train_id, person
-        all_assignments.extend(assignments_train)
+        # Step B: Best-Fit-Decreasing for leftovers
+        bins = [{'person': persons_train[i], 'used': 0, 'allocs': []} for i in range(person_idx, len(persons_train))]
     
-        metadata_per_train[tid] = {
-            'total_packages': total_packages_train,
-            'capacity': capacity,
-            'total_persons': Hn_train
-        }
+        leftover_items = [(wh, len(pkgs), pkgs) for wh, pkgs in leftovers_per_warehouse.items()]
+        leftover_items.sort(key=lambda x: x[1], reverse=True)
     
-    # After looping over all trains:
-    assignments_df = pd.DataFrame(all_assignments)
-
-
-    # Step A: Full-capacity allocations per warehouse
-    assignments = []  # list of dicts: package_id, warehouse_id, train_id, person
-    person_idx = 0
-
-    leftovers_per_warehouse = {}  # wh -> list of remaining package dicts
-
-    for wh, pkg_list in wh_to_pkgs.items():
-        idx = 0
-        n = len(pkg_list)
-        f_i = n // capacity
-        # assign f_i full persons
-        for f in range(f_i):
-            if person_idx >= Hn:
-                raise RuntimeError("Not enough persons computed; logic error.")
-            person = persons[person_idx]
-            # assign next capacity packages to this person
-            for k in range(capacity):
-                pkg = pkg_list[idx]
-                assignments.append({
-                    'package_id': pkg['package_id'],
-                    'warehouse_id': wh,
-                    'train_id': pkg['train_id'],
-                    'person': person
-                })
-                idx += 1
-            person_idx += 1
-        # leftover
-        leftover_pkgs = pkg_list[idx:]
-        if leftover_pkgs:
-            leftovers_per_warehouse[wh] = leftover_pkgs
-
-    # Step B: Assign leftovers (atomic) using Best-Fit-Decreasing
-    # Create bins for remaining persons (each bin: person id and used capacity)
-    bins = []
-    # If person_idx already used some persons, remaining persons will be used for leftovers.
-    for i in range(person_idx, Hn):
-        bins.append({'person': persons[i], 'used': 0, 'allocs': []})
-
-    # Create list of (warehouse, leftover_count, list_of_pkgs)
-    leftover_items = []
-    for wh, pkgs in leftovers_per_warehouse.items():
-        leftover_items.append((wh, len(pkgs), pkgs))
-    # sort descending by leftover size
-    leftover_items.sort(key=lambda x: x[1], reverse=True)
-
-    for wh, count, pkgs in leftover_items:
-        placed = False
-        # Best-Fit: find bin with smallest remaining capacity after placing (but sufficient)
-        best_bin = None
-        best_after = None
-        for b in bins:
-            if b['used'] + count <= capacity:
-                after = b['used'] + count
-                if best_after is None or after < best_after:
-                    best_after = after
-                    best_bin = b
-        if best_bin is not None:
-            # place all pkgs to this person
-            best_bin['used'] += count
-            best_bin['allocs'].append((wh, pkgs))
-            placed = True
-        else:
-            # No existing bin can take it (shouldn't happen because Hn computed), but if it does,
-            # create a new bin if possible (fallback) else raise
-            if len(bins) < (Hn - person_idx):
-                new_person_index = person_idx + len(bins)
-                new_person = persons[new_person_index]
-                bnew = {'person': new_person, 'used': count, 'allocs': [(wh, pkgs)]}
-                bins.append(bnew)
-                placed = True
+        for wh, count, pkgs in leftover_items:
+            best_bin = None
+            best_after = None
+            for b in bins:
+                if b['used'] + count <= capacity:
+                    after = b['used'] + count
+                    if best_after is None or after < best_after:
+                        best_after = after
+                        best_bin = b
+            if best_bin:
+                best_bin['used'] += count
+                best_bin['allocs'].append((wh, pkgs))
             else:
-                # As fallback, split the leftover across persons (only if absolutely necessary)
-                # We'll assign greedily across bins with available capacity
+                # fallback: split across bins
                 remaining = pkgs.copy()
                 for b in bins:
                     avail = capacity - b['used']
@@ -176,67 +128,55 @@ def assign_packages(packages_df, trains_df, warehouses_df, capacity):
                         break
                 if remaining:
                     raise RuntimeError("Unable to pack leftovers into persons — inconsistent Hn.")
-
-    # Commit bins allocations to assignments
-    for b in bins:
-        person = b['person']
-        for wh, alloc_pkgs in b['allocs']:
-            for pkg in alloc_pkgs:
-                assignments.append({
-                    'package_id': pkg['package_id'],
-                    'warehouse_id': wh,
-                    'train_id': pkg['train_id'],
-                    'person': person
-                })
-
-    # Final assignments DataFrame
-    assignments_df = pd.DataFrame(assignments)
-
-    # Sanity: ensure every package assigned
-    assigned_count = assignments_df['package_id'].nunique()
-    if assigned_count != total_packages:
-        raise RuntimeError(f"Assigned {assigned_count} packages but expected {total_packages}.")
-
-    # Build summary pivot: for each train x warehouse -> number of distinct persons
-    # --- Build summary pivot: train × warehouse ---
-    summary_df = assignments_df.groupby(["train_id", "warehouse_id"]).size().unstack(fill_value=0)
     
-    # --- Ensure all warehouses are always shown ---
+        # commit bins allocations
+        for b in bins:
+            person = b['person']
+            for wh, alloc_pkgs in b['allocs']:
+                for pkg in alloc_pkgs:
+                    assignments_train.append({
+                        'package_id': pkg['package_id'],
+                        'warehouse_id': wh,
+                        'train_id': pkg['train_id'],
+                        'person': person
+                    })
+    
+        # append train assignments
+        all_assignments.extend(assignments_train)
+    
+        metadata_per_train[tid] = {
+            'total_packages': total_packages_train,
+            'capacity': capacity,
+            'total_persons': Hn_train
+        }
+    
+    # --- After looping all trains ---
+    assignments_df = pd.DataFrame(all_assignments)
+    
+    # Build summary pivot: train × warehouse
+    summary_df = assignments_df.groupby(["train_id", "warehouse_id"]).size().unstack(fill_value=0)
     all_warehouses = list(warehouses_df["warehouse_id"])
     summary_df = summary_df.reindex(columns=all_warehouses, fill_value=0)
-    
-    # --- Convert to fractional persons (packages / capacity) ---
     summary_df = summary_df / capacity
-    
-    # --- Reset index for display ---
     summary_df = summary_df.reset_index()
     
-    # --- Identify numeric warehouse columns only ---
     warehouse_cols = [c for c in summary_df.columns if c.startswith("W")]
-    
-    # --- Add total persons (ceiling) ---
     summary_df["Total Persons"] = np.ceil(summary_df[warehouse_cols].sum(axis=1)).astype(int)
-    
-    # --- Round for cleaner display ---
     summary_df[warehouse_cols] = summary_df[warehouse_cols].round(2)
-
-    # Build per-train detailed mappings
+    
+    # Build per-train detail mapping
     per_train_detail = {}
     for tid, grp in assignments_df.groupby('train_id'):
-        # group by warehouse and person, list package_ids
         detail_rows = []
         for (wh, person), g in grp.groupby(['warehouse_id', 'person']):
             pkgs = list(g['package_id'])
             detail_rows.append({'warehouse': wh, 'person': person, 'packages': pkgs, 'count': len(pkgs)})
-        detail_df = pd.DataFrame(detail_rows).sort_values(['warehouse', 'person']).reset_index(drop=True)
-        per_train_detail[tid] = detail_df
-
+        per_train_detail[tid] = pd.DataFrame(detail_rows).sort_values(['warehouse', 'person']).reset_index(drop=True)
+    
     metadata = {
-        'total_packages': total_packages,
+        'total_packages': len(packages),
         'capacity': capacity,
-        'total_persons': Hn,
-        'full_allocations': person_idx,
-        'leftover_persons': len(bins),
+        'total_persons': sum(len([f"H{i+1}_T{tid}" for i in range(math.ceil(len(grp)/capacity))]) for tid, grp in train_groups),
     }
-
+    
     return assignments_df, summary_df, per_train_detail, metadata
