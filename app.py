@@ -241,36 +241,47 @@ if st.sidebar.button("Assign Packages"):
 
             st.success(f"Assigned {meta['total_packages']} packages -> {meta['total_persons']} persons")
             st.markdown("**Assignment Summary (train × warehouse):**")
+            
             # show summary as a nicer table with train as first col
             st.dataframe(summary_df.fillna(0).set_index('train_id'))
-
-            # --- Persist detailed assignment info across interactions ---
-            if "per_train_detail" not in st.session_state:
-                st.session_state["per_train_detail"] = per_train_detail
             
-            # --- Dropdown to select a train ---
-            train_options = list(summary_df['train_id'])
-            selected_train = st.selectbox("Select Train to view details", options=train_options)
+            # --- Save results persistently for later access ---
+            st.session_state["summary_df"] = summary_df
+            st.session_state["per_train_detail"] = per_train_detail
             
-            # --- Show details for selected train ---
-            if selected_train:
-                detail = st.session_state["per_train_detail"].get(selected_train, pd.DataFrame())
-                if detail.empty:
-                    st.info("No assignment details for selected train.")
-                else:
-                    st.markdown(f"**Details for {selected_train}:**")
-                    detail_disp = detail.copy()
-                    detail_disp["packages"] = detail_disp["packages"].apply(lambda lst: ",".join(lst))
-                    detail_disp = detail_disp[["warehouse", "person", "packages", "count"]]
-                    detail_disp = detail_disp.rename(
-                        columns={
-                            "warehouse": "Warehouse",
-                            "person": "Person",
-                            "packages": "Package IDs",
-                            "count": "Count",
-                        }
-                    )
-                    st.dataframe(detail_disp)
+            # ✅ Move the dropdown and detail display OUTSIDE the button (persistent area)
+            # -------------------------
+            # Drill-down section (always visible if data exists)
+            # -------------------------
+            if "summary_df" in st.session_state and "per_train_detail" in st.session_state:
+                st.markdown("### Drill-down Details")
+            
+                summary_df = st.session_state["summary_df"]
+                per_train_detail = st.session_state["per_train_detail"]
+            
+                # Dropdown to choose train
+                train_options = list(summary_df['train_id'])
+                selected_train = st.selectbox("Select Train to view details", options=train_options)
+            
+                # Display details for selected train
+                if selected_train:
+                    detail = per_train_detail.get(selected_train, pd.DataFrame())
+                    if detail.empty:
+                        st.info("No assignment details for selected train.")
+                    else:
+                        st.markdown(f"**Details for {selected_train}:**")
+                        detail_disp = detail.copy()
+                        detail_disp["packages"] = detail_disp["packages"].apply(lambda lst: ",".join(lst))
+                        detail_disp = detail_disp[["warehouse", "person", "packages", "count"]]
+                        detail_disp = detail_disp.rename(
+                            columns={
+                                "warehouse": "Warehouse",
+                                "person": "Person",
+                                "packages": "Package IDs",
+                                "count": "Count",
+                            }
+                        )
+                        st.dataframe(detail_disp)
 
 # -------------------------
 # Info text
