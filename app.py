@@ -219,77 +219,69 @@ if "pkg_text" in st.session_state:
 # -------------------------
 # Assign Packages Button & Results
 # -------------------------
-st.sidebar.markdown("### Assignment")
-if st.sidebar.button("Assign Packages"):
-    # get packages df (use session_state if newly generated)
-    if "packages" not in st.session_state:
-        st.warning("No packages available. Generate packages first.")
-    else:
-        pkgs = st.session_state["packages"].copy()
-        # Ensure columns: package_id, warehouse_id
-        if 'package_id' not in pkgs.columns or 'warehouse_id' not in pkgs.columns:
-            st.error("packages table missing required columns ('package_id', 'warehouse_id').")
-        else:
-            # call assignment module
-            assignments_df, summary_df, per_train_detail, meta = assign_packages(
-                pkgs, trains, warehouses, int(max_packages_per_person)
-            )
-            st.session_state['assignments_df'] = assignments_df
-            st.session_state['summary_df'] = summary_df
-            st.session_state['per_train_detail'] = per_train_detail
-            st.session_state['assignment_meta'] = meta
+assign_clicked = st.sidebar.button("Assign Packages")
 
-            st.success(f"Assigned {meta['total_packages']} packages -> {meta['total_persons']} persons")
-            st.markdown("**Assignment Summary (train × warehouse):**")
-            
-            # show summary as a nicer table with train as first col
-            # show summary as a nicer table with train as first col
-            st.dataframe(summary_df.fillna(0).set_index('train_id'))
-            
-            # --- Save results persistently for later access ---
-            st.session_state["summary_df"] = summary_df
-            st.session_state["per_train_detail"] = per_train_detail
-            
-            # -------------------------
-            # Drill-down Section (Button-based)
-            # -------------------------
-            if "summary_df" in st.session_state and "per_train_detail" in st.session_state:
-                st.markdown("### Drill-down Details")
-            
-                summary_df = st.session_state["summary_df"]
-                per_train_detail = st.session_state["per_train_detail"]
-            
-                train_options = list(summary_df["train_id"])
-                if "selected_train" not in st.session_state:
-                    st.session_state["selected_train"] = train_options[0] if train_options else None
-            
-                cols = st.columns(len(train_options))
-                for i, train_id in enumerate(train_options):
-                    with cols[i]:
-                        if st.button(f"🚆 {train_id}", key=f"train_{train_id}"):
-                            st.session_state["selected_train"] = train_id
-            
-                # --- Display details for the selected train ---
-                selected_train = st.session_state["selected_train"]
-                if selected_train:
-                    st.markdown(f"**Details for {selected_train}:**")
-                    detail = per_train_detail.get(selected_train, pd.DataFrame())
-            
-                    if detail.empty:
-                        st.info("No assignment details for selected train.")
-                    else:
-                        detail_disp = detail.copy()
-                        detail_disp["packages"] = detail_disp["packages"].apply(lambda lst: ",".join(lst))
-                        detail_disp = detail_disp[["warehouse", "person", "packages", "count"]]
-                        detail_disp = detail_disp.rename(
-                            columns={
-                                "warehouse": "Warehouse",
-                                "person": "Person",
-                                "packages": "Package IDs",
-                                "count": "Count",
-                            }
-                        )
-                        st.dataframe(detail_disp)
+# Only generate assignments if clicked or if already exist in session_state
+if assign_clicked or ("summary_df" in st.session_state and "per_train_detail" in st.session_state):
+    if assign_clicked:
+        if "packages" not in st.session_state:
+            st.warning("No packages available. Generate packages first.")
+        else:
+            pkgs = st.session_state["packages"].copy()
+            if 'package_id' not in pkgs.columns or 'warehouse_id' not in pkgs.columns:
+                st.error("packages table missing required columns ('package_id', 'warehouse_id').")
+            else:
+                assignments_df, summary_df, per_train_detail, meta = assign_packages(
+                    pkgs, trains, warehouses, int(max_packages_per_person)
+                )
+                # Persist results for future reruns
+                st.session_state['assignments_df'] = assignments_df
+                st.session_state['summary_df'] = summary_df
+                st.session_state['per_train_detail'] = per_train_detail
+                st.session_state['assignment_meta'] = meta
+                st.success(f"Assigned {meta['total_packages']} packages -> {meta['total_persons']} persons")
+
+    # Use session_state for display (works after reruns)
+    summary_df = st.session_state["summary_df"]
+    per_train_detail = st.session_state["per_train_detail"]
+
+    # --- Show summary table ---
+    st.markdown("**Assignment Summary (train × warehouse):**")
+    st.dataframe(summary_df.fillna(0).set_index('train_id'))
+
+    # -------------------------
+    # Drill-down Buttons
+    # -------------------------
+    train_options = list(summary_df['train_id'])
+    if "selected_train" not in st.session_state:
+        st.session_state["selected_train"] = train_options[0] if train_options else None
+
+    cols = st.columns(len(train_options))
+    for i, train_id in enumerate(train_options):
+        with cols[i]:
+            if st.button(f"🚆 {train_id}", key=f"train_{train_id}"):
+                st.session_state["selected_train"] = train_id
+
+    # Show details for selected train
+    selected_train = st.session_state["selected_train"]
+    if selected_train:
+        st.markdown(f"**Details for {selected_train}:**")
+        detail = per_train_detail.get(selected_train, pd.DataFrame())
+        if detail.empty:
+            st.info("No assignment details for selected train.")
+        else:
+            detail_disp = detail.copy()
+            detail_disp["packages"] = detail_disp["packages"].apply(lambda lst: ",".join(lst))
+            detail_disp = detail_disp[["warehouse", "person", "packages", "count"]]
+            detail_disp = detail_disp.rename(
+                columns={
+                    "warehouse": "Warehouse",
+                    "person": "Person",
+                    "packages": "Package IDs",
+                    "count": "Count",
+                }
+            )
+            st.dataframe(detail_disp)
 
 # -------------------------
 # Info text
