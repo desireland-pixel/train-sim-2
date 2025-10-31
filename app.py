@@ -243,15 +243,15 @@ if st.sidebar.button("Assign Packages"):
             st.markdown("**Assignment Summary (train × warehouse):**")
             
             # show summary as a nicer table with train as first col
+            # show summary as a nicer table with train as first col
             st.dataframe(summary_df.fillna(0).set_index('train_id'))
             
             # --- Save results persistently for later access ---
             st.session_state["summary_df"] = summary_df
             st.session_state["per_train_detail"] = per_train_detail
             
-            # ✅ Move the dropdown and detail display OUTSIDE the button (persistent area)
             # -------------------------
-            # Drill-down section (always visible if data exists)
+            # Drill-down Section (Button-based)
             # -------------------------
             if "summary_df" in st.session_state and "per_train_detail" in st.session_state:
                 st.markdown("### Drill-down Details")
@@ -259,17 +259,25 @@ if st.sidebar.button("Assign Packages"):
                 summary_df = st.session_state["summary_df"]
                 per_train_detail = st.session_state["per_train_detail"]
             
-                # Dropdown to choose train
-                train_options = list(summary_df['train_id'])
-                selected_train = st.selectbox("Select Train to view details", options=train_options)
+                train_options = list(summary_df["train_id"])
+                if "selected_train" not in st.session_state:
+                    st.session_state["selected_train"] = train_options[0] if train_options else None
             
-                # Display details for selected train
+                cols = st.columns(len(train_options))
+                for i, train_id in enumerate(train_options):
+                    with cols[i]:
+                        if st.button(f"🚆 {train_id}", key=f"train_{train_id}"):
+                            st.session_state["selected_train"] = train_id
+            
+                # --- Display details for the selected train ---
+                selected_train = st.session_state["selected_train"]
                 if selected_train:
+                    st.markdown(f"**Details for {selected_train}:**")
                     detail = per_train_detail.get(selected_train, pd.DataFrame())
+            
                     if detail.empty:
                         st.info("No assignment details for selected train.")
                     else:
-                        st.markdown(f"**Details for {selected_train}:**")
                         detail_disp = detail.copy()
                         detail_disp["packages"] = detail_disp["packages"].apply(lambda lst: ",".join(lst))
                         detail_disp = detail_disp[["warehouse", "person", "packages", "count"]]
