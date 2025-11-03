@@ -53,6 +53,36 @@ order_T4 = st.sidebar.number_input("T4 Orders", 0, 20, 0)
 order_T5 = st.sidebar.number_input("T5 Orders", 0, 20, 0)
 train_orders = [order_T1, order_T2, order_T3, order_T4, order_T5]
 
+# Initialize a dictionary in session state to hold dynamic input values
+if 'dynamic_orders' not in st.session_state:
+    st.session_state.dynamic_orders = {}
+
+# This list will store the *values* entered by the user in the correct order
+train_orders = [] 
+train_ids = trains['train_id'].tolist() # Get the list of train IDs once
+
+# Iterate through the actual train IDs from your DataFrame
+for train_id in train_ids:
+    # Create a unique key for the widget in session state
+    input_key = f"orders_for_{train_id}"
+    
+    # Set a default value in session state if it doesn't exist
+    if input_key not in st.session_state.dynamic_orders:
+        st.session_state.dynamic_orders[input_key] = 0
+
+    # Create the number input dynamically in the sidebar
+    # The 'key' argument ensures Streamlit manages the value across reruns
+    current_value = st.sidebar.number_input(
+        f"{train_id} Orders",
+        min_value=0,
+        max_value=20,
+        value=st.session_state.dynamic_orders[input_key],
+        key=input_key # Link the widget to the session state key
+    )
+    
+    # Append the value to the list used by the generation logic below
+    train_orders.append(current_value)
+
 # -------------------------
 # Generate Packages Button
 # -------------------------
