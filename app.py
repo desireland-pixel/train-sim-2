@@ -7,7 +7,6 @@ import plotly.graph_objects as go
 from pathlib import Path
 from modules.assignment import assign_packages
 
-
 st.set_page_config(layout="wide", page_title="Train-Warehouse Simulation")
 
 DATA_DIR = Path("data")
