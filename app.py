@@ -39,19 +39,12 @@ persons = load_csv("persons.csv")
 # -------------------------
 st.sidebar.header("Simulation Settings")
 max_packages_per_person = st.sidebar.number_input("Max packages a person can carry", 1, 10, 5)
-#num_people = st.sidebar.number_input("If persons.csv missing, auto-create N persons", 1, 50, 10)
 current_time = st.sidebar.number_input("Current time (minutes)", 0, 60, 0)
 
 # -------------------------
 # Orders per train inputs
 # -------------------------
 st.sidebar.markdown("### Orders per Train")
-#order_T1 = st.sidebar.number_input("T1 Orders", 0, 20, 0)
-#order_T2 = st.sidebar.number_input("T2 Orders", 0, 20, 0)
-#order_T3 = st.sidebar.number_input("T3 Orders", 0, 20, 0)
-#order_T4 = st.sidebar.number_input("T4 Orders", 0, 20, 0)
-#order_T5 = st.sidebar.number_input("T5 Orders", 0, 20, 0)
-#train_orders = [order_T1, order_T2, order_T3, order_T4, order_T5]
 
 # Initialize a dictionary in session state to hold dynamic input values
 if 'dynamic_orders' not in st.session_state:
@@ -170,7 +163,7 @@ fig.add_trace(go.Scatter(
     mode="markers+text",
     name="Trains",
     marker=dict(size=20, color="red"),
-    textfont=dict(color="white")
+    textfont=dict(color="black")
 ))
 
 # -------------------------
