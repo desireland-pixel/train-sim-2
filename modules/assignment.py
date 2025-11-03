@@ -48,7 +48,7 @@ def assign_packages(packages_df, trains_df, warehouses_df, capacity):
             continue
 
         Hn_train = math.ceil(total_packages_train / capacity)
-        persons_train = [f"H{i+1}_T{tid}" for i in range(Hn_train)]  # unique per train
+        persons_train = [f"H{i+1}_{tid}" for i in range(Hn_train)]  # unique per train
 
         # --- per-train assignment ---
         assignments_train = []
