@@ -56,7 +56,7 @@ train_orders = [order_T1, order_T2, order_T3, order_T4, order_T5]
 # -------------------------
 # Generate Packages Button
 # -------------------------
-if st.sidebar.button("Generate Packages from Orders"):
+if st.sidebar.button("Generate Packages"):
     gen_packages = []
 
     # For each train, use the manual order inputs from sidebar
