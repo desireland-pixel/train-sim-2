@@ -6,6 +6,7 @@ import random
 import plotly.graph_objects as go
 from pathlib import Path
 from modules.assignment import assign_packages
+from modules.movement import load_points, build_route, interpolate_position
 
 st.set_page_config(layout="wide", page_title="Train-Warehouse Simulation")
 
@@ -203,6 +204,12 @@ for wh_id, group in packages.groupby("warehouse_id"):
                 name="Packages",
                 showlegend=(len(fig.data) == 3)
             ))
+
+# -------------------------
+# Worker movement
+# -------------------------
+points = load_points(DATA_DIR)
+walk_speed = 50  # units per minute (tunable)
 
 # -------------------------
 # Clock on top right
