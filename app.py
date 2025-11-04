@@ -211,6 +211,35 @@ for wh_id, group in packages.groupby("warehouse_id"):
 points = load_points(DATA_DIR)
 walk_speed = 50  # units per minute (tunable)
 
+if "per_train_detail" in st.session_state:
+    per_train_detail = st.session_state["per_train_detail"]
+
+    for train_id, detail in per_train_detail.items():
+        if detail.empty:
+            continue
+        platform = int(trains.loc[trains.train_id == train_id, "platform"].values[0])
+
+        for _, row in detail.iterrows():
+            warehouse_id = row["warehouse"]
+            person_id = row["person"]
+
+            # Build route dynamically
+            route = build_route(warehouse_id, platform, points, warehouses)
+            
+            # Compute current position (based on simulation time)
+            x, y = interpolate_position(route, current_time, walk_speed)
+
+            # Add to plot as orange marker
+            fig.add_trace(go.Scatter(
+                x=[x], y=[y],
+                mode="markers+text",
+                text=[person_id],
+                textposition="top center",
+                name="Humans",
+                marker=dict(size=10, color="orange", symbol="circle"),
+                showlegend=False
+            ))
+
 # -------------------------
 # Clock on top right
 # -------------------------
